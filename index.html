@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>快樂九成帥一成team</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<!-- Sortable -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<style>
+:root{
+  --bg:#cce7ff;
+  --accent:#e25b77;
+  --male:#8fc1ff;
+  --female:#ffb6c1;
+}
+body{
+  margin:0;
+  padding:8px;
+  background:var(--bg);
+  font-family:'Segoe UI',sans-serif;
+  height:100vh;
+  overflow:hidden;
+}
+h1{
+  text-align:center;
+  color:var(--accent);
+  margin:4px 0;
+}
+#controls{
+  text-align:center;
+  margin-bottom:6px;
+}
+input,select,button{
+  padding:6px 10px;
+  font-size:14px;
+  border-radius:8px;
+}
+button{
+  background:var(--accent);
+  color:#fff;
+  border:none;
+  font-weight:bold;
+}
+.container{
+  display:grid;
+  grid-template-columns:1.1fr 3fr;
+  height:calc(100vh - 110px);
+  gap:8px;
+}
+.area{
+  background:#fff;
+  border:2px solid var(--accent);
+  border-radius:14px;
+  padding:6px;
+  display:flex;
+  flex-direction:column;
+}
+.area h3{
+  text-align:center;
+  color:var(--accent);
+  margin:4px 0;
+}
+.player-zone{
+  flex:1;
+  overflow:auto;
+}
+.player{
+  margin:6px 0;
+  padding:8px;
+  border-radius:12px;
+  font-weight:bold;
+  text-align:center;
+  cursor:grab;
+}
+.male{background:var(--male);}
+.female{background:var(--female);}
+.right{
+  display:grid;
+  grid-template-rows:1fr 1fr;
+  gap:8px;
+}
+.courts,.waitings{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:8px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>快樂九成帥一成team</h1>
+
+<div id="controls">
+  <input id="nameInput" placeholder="球員名稱">
+  <select id="genderInput">
+    <option value="M">男</option>
+    <option value="F">女</option>
+  </select>
+  <button onclick="addPlayer()">新增球員</button>
+</div>
+
+<div class="container">
+  <div class="area">
+    <h3>休息區</h3>
+    <div class="player-zone" id="bench"></div>
+  </div>
+
+  <div class="right">
+    <div class="courts">
+      <div class="area"><h3>場地 1</h3><div class="player-zone" id="court1"></div></div>
+      <div class="area"><h3>場地 2</h3><div class="player-zone" id="court2"></div></div>
+      <div class="area"><h3>場地 3</h3><div class="player-zone" id="court3"></div></div>
+      <div class="area"><h3>場地 4</h3><div class="player-zone" id="court4"></div></div>
+    </div>
+    <div class="waitings">
+      <div class="area"><h3>等候 1</h3><div class="player-zone" id="wait1"></div></div>
+      <div class="area"><h3>等候 2</h3><div class="player-zone" id="wait2"></div></div>
+      <div class="area"><h3>等候 3</h3><div class="player-zone" id="wait3"></div></div>
+      <div class="area"><h3>等候 4</h3><div class="player-zone" id="wait4"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 🔧 Firebase 設定（只改這裡） */
+const firebaseConfig = {
+  apiKey: "AIzaSyCLUmagiUpLd0qRUQ-TyoFt7hwrNK7xVDY",
+  authDomain: "havix-b6fe2.firebaseapp.com",
+  databaseURL: "https://havix-b6fe2-default-rtdb.firebaseio.com",
+  projectId: "havix-b6fe2",
+  storageBucket: "havix-b6fe2.firebasestorage.app",
+  messagingSenderId: "731514229274",
+  appId: "1:731514229274:web:1f45a163f223e9fb79f7a3",
+  measurementId: "G-YHH49P39XZ"
+};
+
+firebase.initializeApp(firebaseConfig);
+const dbRef = firebase.database().ref("state");
+
+/* 區域定義（唯一真實來源） */
+const zones = [
+  "bench",
+  "court1","court2","court3","court4",
+  "wait1","wait2","wait3","wait4"
+];
+
+/* 初始化資料 */
+dbRef.once("value",snap=>{
+  if(!snap.exists()){
+    const init={};
+    zones.forEach(z=>init[z]=[]);
+    dbRef.set(init);
+  }
+});
+
+/* 即時同步渲染 */
+dbRef.on("value",snap=>{
+  const state=snap.val();
+  if(!state) return;
+
+  zones.forEach(z=>{
+    const el=document.getElementById(z);
+    el.innerHTML="";
+    state[z].forEach(p=>{
+      const d=document.createElement("div");
+      d.className="player "+(p.gender==="M"?"male":"female");
+      d.textContent=p.name;
+      el.appendChild(d);
+    });
+  });
+});
+
+/* 新增球員 */
+function addPlayer(){
+  const name=nameInput.value.trim();
+  if(!name) return;
+
+  dbRef.child("bench").transaction(arr=>
+    (arr||[]).concat({name,gender:genderInput.value})
+  );
+
+  nameInput.value="";
+}
+
+/* 拖拉 */
+zones.forEach(z=>{
+  new Sortable(document.getElementById(z),{
+    group:"players",
+    animation:150,
+    onEnd:saveAll
+  });
+});
+
+/* 儲存狀態 */
+function saveAll(){
+  const state={};
+  zones.forEach(z=>{
+    state[z]=[...document.getElementById(z).children].map(p=>({
+      name:p.textContent,
+      gender:p.classList.contains("male")?"M":"F"
+    }));
+  });
+  dbRef.set(state);
+}
+</script>
+
+</body>
+</html>
